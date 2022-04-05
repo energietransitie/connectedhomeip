@@ -249,6 +249,8 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
             DataVersion dataVersion = 0;
             uint32_t clusterSize    = 0;
             ClusterId clusterId     = clusterIter.first;
+            bool versionMismatch    = false;
+            bool isFirst            = true;
             for (auto const & attributeIter : clusterIter.second)
             {
                 if (!attributeIter.second.Is<StatusIB>())
@@ -265,13 +267,27 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
                     // Compute the amount of value data
                     clusterSize += reader.GetLengthRead();
 
-                    dataVersion = attributeIter.second.Get<VersionedAttributeBuffer>().mDataVersion;
+                    if (!isFirst && dataVersion != attributeIter.second.Get<VersionedAttributeBuffer>().mDataVersion)
+                    {
+                        versionMismatch = true;
+                        break;
+                    }
+                    else
+                    {
+                        isFirst     = false;
+                        dataVersion = attributeIter.second.Get<VersionedAttributeBuffer>().mDataVersion;
+                    }
                 }
+            }
+            if (versionMismatch)
+            {
+                continue;
             }
             if (clusterSize == 0)
             {
                 continue;
             }
+
             DataVersionFilter filter(endpointId, clusterId, dataVersion);
             aMap[filter] = clusterSize;
         }

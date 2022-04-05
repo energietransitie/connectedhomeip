@@ -18,6 +18,7 @@
 
 #include "transport/SecureSession.h"
 #include <app-common/zap-generated/cluster-objects.h>
+#include <app/AttributeCache.h>
 #include <app/InteractionModelEngine.h>
 #include <app/tests/AppTestContext.h>
 #include <controller/ReadInteraction.h>
@@ -169,6 +170,10 @@ public:
 
     static void TestReadAttributeResponse(nlTestSuite * apSuite, void * apContext);
     static void TestReadDataVersionFilter(nlTestSuite * apSuite, void * apContext);
+    static void TestReadAttributeResponseWithCache(nlTestSuite * apSuite, void * apContext);
+    static void TestReadAttributeResponseWithCachePartialRollback(nlTestSuite * apSuite, void * apContext);
+    static void TestReadAttributeResponseWithCacheRollback(nlTestSuite * apSuite, void * apContext);
+    static void TestSubscribeAttributeResponseWithCache(nlTestSuite * apSuite, void * apContext);
     static void TestReadAttributeError(nlTestSuite * apSuite, void * apContext);
     static void TestReadAttributeTimeout(nlTestSuite * apSuite, void * apContext);
     static void TestReadEventResponse(nlTestSuite * apSuite, void * apContext);
@@ -220,6 +225,54 @@ private:
 
 TestReadInteraction gTestReadInteraction;
 
+class MockInteractionModelApp : public chip::app::AttributeCache::Callback
+{
+public:
+    void OnEventData(const chip::app::EventHeader & aEventHeader, chip::TLV::TLVReader * apData,
+                     const chip::app::StatusIB * apStatus) override
+    {}
+
+    void OnAttributeData(const chip::app::ConcreteDataAttributePath & aPath, chip::TLV::TLVReader * apData,
+                         const chip::app::StatusIB & status) override
+    {
+        if (status.mStatus == chip::Protocols::InteractionModel::Status::Success)
+        {
+            mNumAttributeResponse++;
+            mGotReport = true;
+        }
+    }
+
+    void OnError(CHIP_ERROR aError) override
+    {
+        mError     = aError;
+        mReadError = true;
+    }
+
+    void OnDone() override {}
+
+    void OnDeallocatePaths(chip::app::ReadPrepareParams && aReadPrepareParams) override
+    {
+        if (aReadPrepareParams.mpAttributePathParamsList != nullptr)
+        {
+            delete[] aReadPrepareParams.mpAttributePathParamsList;
+        }
+
+        if (aReadPrepareParams.mpEventPathParamsList != nullptr)
+        {
+            delete[] aReadPrepareParams.mpEventPathParamsList;
+        }
+
+        if (aReadPrepareParams.mpDataVersionFilterList != nullptr)
+        {
+            delete[] aReadPrepareParams.mpDataVersionFilterList;
+        }
+    }
+
+    int mNumAttributeResponse = 0;
+    bool mGotReport           = false;
+    bool mReadError           = false;
+    CHIP_ERROR mError         = CHIP_NO_ERROR;
+};
 void TestReadInteraction::TestReadAttributeResponse(nlTestSuite * apSuite, void * apContext)
 {
     TestContext & ctx       = *static_cast<TestContext *>(apContext);
@@ -304,6 +357,204 @@ void TestReadInteraction::TestReadDataVersionFilter(nlTestSuite * apSuite, void 
     NL_TEST_ASSERT(apSuite, app::InteractionModelEngine::GetInstance()->GetNumActiveReadClients() == 0);
     NL_TEST_ASSERT(apSuite, app::InteractionModelEngine::GetInstance()->GetNumActiveReadHandlers() == 0);
     NL_TEST_ASSERT(apSuite, ctx.GetExchangeManager().GetNumActiveExchanges() == 0);
+}
+
+void TestReadInteraction::TestReadAttributeResponseWithCache(nlTestSuite * apSuite, void * apContext)
+{
+    TestContext & ctx  = *static_cast<TestContext *>(apContext);
+    auto sessionHandle = ctx.GetSessionBobToAlice();
+
+    responseDirective = kSendDataResponse;
+
+    MockInteractionModelApp delegate;
+    chip::app::AttributeCache cache(delegate);
+    app::InteractionModelEngine * engine = app::InteractionModelEngine::GetInstance();
+    app::ReadPrepareParams readParams(sessionHandle);
+
+    app::AttributePathParams readPaths[3];
+    readPaths[0] = app::AttributePathParams(kTestEndpointId, app::Clusters::TestCluster::Id,
+                                            TestCluster::Attributes::ListStructOctetString::Id);
+    readPaths[1] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::VendorID::Id);
+    readPaths[2] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::ProductID::Id);
+    readParams.mpAttributePathParamsList    = readPaths;
+    readParams.mAttributePathParamsListSize = 3;
+    app::ReadClient readClient(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                               chip::app::ReadClient::InteractionType::Read);
+    CHIP_ERROR err = readClient.SendRequest(readParams);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(Controller, "Failed to send read request for testing clusters");
+    }
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    delegate.mNumAttributeResponse = 0;
+    app::ReadClient readClient1(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                                chip::app::ReadClient::InteractionType::Read);
+    err = readClient1.SendRequest(readParams);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(Controller, "Failed to send read request for testing clusters");
+    }
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 0);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadClients() == 0);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadHandlers() == 0);
+    NL_TEST_ASSERT(apSuite, ctx.GetExchangeManager().GetNumActiveExchanges() == 0);
+}
+
+void TestReadInteraction::TestReadAttributeResponseWithCachePartialRollback(nlTestSuite * apSuite, void * apContext)
+{
+    TestContext & ctx  = *static_cast<TestContext *>(apContext);
+    auto sessionHandle = ctx.GetSessionBobToAlice();
+
+    responseDirective = kSendDataResponse;
+
+    MockInteractionModelApp delegate;
+    chip::app::AttributeCache cache(delegate);
+    app::InteractionModelEngine * engine = app::InteractionModelEngine::GetInstance();
+    app::ReadPrepareParams readParams(sessionHandle);
+
+    app::AttributePathParams readPaths[3];
+    readPaths[0] = app::AttributePathParams(kTestEndpointId, app::Clusters::TestCluster::Id,
+                                            TestCluster::Attributes::ListStructOctetString::Id);
+    readPaths[1] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::VendorID::Id);
+    readPaths[2] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::ProductID::Id);
+    readParams.mpAttributePathParamsList    = readPaths;
+    readParams.mAttributePathParamsListSize = 3;
+    app::ReadClient readClient(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                               chip::app::ReadClient::InteractionType::Read);
+    CHIP_ERROR err = readClient.SendRequest(readParams);
+    NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    delegate.mNumAttributeResponse = 0;
+    app::ReadClient readClient1(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                                chip::app::ReadClient::InteractionType::Read);
+    chip::app::EventPathParams eventPathParams[100];
+    readParams.mpEventPathParamsList = eventPathParams;
+
+    readParams.mEventPathParamsListSize = 78;
+    for (uint32_t index = 0; index < readParams.mEventPathParamsListSize; index++)
+    {
+        readParams.mpEventPathParamsList[index].mEndpointId = kTestEndpointId;
+        readParams.mpEventPathParamsList[index].mClusterId  = app::Clusters::TestCluster::Id;
+        readParams.mpEventPathParamsList[index].mEventId    = 0;
+    }
+    err = readClient1.SendRequest(readParams);
+    NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 1);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadClients() == 0);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadHandlers() == 0);
+    NL_TEST_ASSERT(apSuite, ctx.GetExchangeManager().GetNumActiveExchanges() == 0);
+}
+
+void TestReadInteraction::TestReadAttributeResponseWithCacheRollback(nlTestSuite * apSuite, void * apContext)
+{
+    TestContext & ctx  = *static_cast<TestContext *>(apContext);
+    auto sessionHandle = ctx.GetSessionBobToAlice();
+
+    responseDirective = kSendDataResponse;
+
+    MockInteractionModelApp delegate;
+    chip::app::AttributeCache cache(delegate);
+    app::InteractionModelEngine * engine = app::InteractionModelEngine::GetInstance();
+    app::ReadPrepareParams readParams(sessionHandle);
+
+    app::AttributePathParams readPaths[3];
+    readPaths[0] = app::AttributePathParams(kTestEndpointId, app::Clusters::TestCluster::Id,
+                                            TestCluster::Attributes::ListStructOctetString::Id);
+    readPaths[1] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::VendorID::Id);
+    readPaths[2] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::ProductID::Id);
+    readParams.mpAttributePathParamsList    = readPaths;
+    readParams.mAttributePathParamsListSize = 3;
+    app::ReadClient readClient(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                               chip::app::ReadClient::InteractionType::Read);
+    CHIP_ERROR err = readClient.SendRequest(readParams);
+    NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
+    ctx.DrainAndServiceIO();
+    ChipLogError(Controller, "Debug!! %d", delegate.mNumAttributeResponse);
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    delegate.mNumAttributeResponse = 0;
+    app::ReadClient readClient1(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                                chip::app::ReadClient::InteractionType::Read);
+    chip::app::EventPathParams eventPathParams[100];
+    readParams.mpEventPathParamsList = eventPathParams;
+
+    readParams.mEventPathParamsListSize = 79;
+    for (uint32_t index = 0; index < readParams.mEventPathParamsListSize; index++)
+    {
+        readParams.mpEventPathParamsList[index].mEndpointId = kTestEndpointId;
+        readParams.mpEventPathParamsList[index].mClusterId  = app::Clusters::TestCluster::Id;
+        readParams.mpEventPathParamsList[index].mEventId    = 0;
+    }
+    err = readClient1.SendRequest(readParams);
+    NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadClients() == 0);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadHandlers() == 0);
+    NL_TEST_ASSERT(apSuite, ctx.GetExchangeManager().GetNumActiveExchanges() == 0);
+}
+
+void TestReadInteraction::TestSubscribeAttributeResponseWithCache(nlTestSuite * apSuite, void * apContext)
+{
+    TestContext & ctx  = *static_cast<TestContext *>(apContext);
+    auto sessionHandle = ctx.GetSessionBobToAlice();
+
+    responseDirective = kSendDataResponse;
+
+    MockInteractionModelApp delegate;
+    chip::app::AttributeCache cache(delegate);
+    app::InteractionModelEngine * engine = app::InteractionModelEngine::GetInstance();
+    app::ReadPrepareParams readParams(sessionHandle);
+
+    app::AttributePathParams readPaths[3];
+    readPaths[0] = app::AttributePathParams(kTestEndpointId, app::Clusters::TestCluster::Id,
+                                            TestCluster::Attributes::ListStructOctetString::Id);
+    readPaths[1] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::VendorID::Id);
+    readPaths[2] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::ProductID::Id);
+    readParams.mpAttributePathParamsList    = readPaths;
+    readParams.mAttributePathParamsListSize = 3;
+    readParams.mMinIntervalFloorSeconds     = 2;
+    readParams.mMaxIntervalCeilingSeconds   = 5;
+    readParams.mKeepSubscriptions           = true;
+    app::ReadClient readClient(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                               chip::app::ReadClient::InteractionType::Subscribe);
+    CHIP_ERROR err = readClient.SendRequest(readParams);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(Controller, "Failed to send read request for testing clusters");
+    }
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    delegate.mNumAttributeResponse = 0;
+    app::ReadClient readClient1(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                                chip::app::ReadClient::InteractionType::Subscribe);
+    err = readClient1.SendRequest(readParams);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(Controller, "Failed to send read request for testing clusters");
+    }
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 0);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadClients() == 2);
+    NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadHandlers() == 2);
+    engine->ShutdownActiveReads();
+
+    NL_TEST_ASSERT(apSuite, gTestReadInteraction.mNumActiveSubscriptions == 0);
+
+    NL_TEST_ASSERT(apSuite, ctx.GetExchangeManager().GetNumActiveExchanges() == 0);
+
+    engine->UnregisterReadHandlerAppCallback();
 }
 
 void TestReadInteraction::TestReadEventResponse(nlTestSuite * apSuite, void * apContext)
@@ -1007,6 +1258,10 @@ const nlTest sTests[] =
 {
     NL_TEST_DEF("TestReadAttributeResponse", TestReadInteraction::TestReadAttributeResponse),
     NL_TEST_DEF("TestReadDataVersionFilter", TestReadInteraction::TestReadDataVersionFilter),
+    NL_TEST_DEF("TestReadAttributeResponseWithCache", TestReadInteraction::TestReadAttributeResponseWithCache),
+    NL_TEST_DEF("TestReadAttributeResponseWithCachePartialRollback", TestReadInteraction::TestReadAttributeResponseWithCachePartialRollback),
+    NL_TEST_DEF("TestReadAttributeResponseWithCacheRollback", TestReadInteraction::TestReadAttributeResponseWithCacheRollback),
+    NL_TEST_DEF("TestSubscribeAttributeResponseWithCache", TestReadInteraction::TestSubscribeAttributeResponseWithCache),
     NL_TEST_DEF("TestReadEventResponse", TestReadInteraction::TestReadEventResponse),
     NL_TEST_DEF("TestReadAttributeError", TestReadInteraction::TestReadAttributeError),
     NL_TEST_DEF("TestReadFabricScopedWithoutFabricFilter", TestReadInteraction::TestReadFabricScopedWithoutFabricFilter),
