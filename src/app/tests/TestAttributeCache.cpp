@@ -627,10 +627,10 @@ void TestSortDataVersionFilterSet(nlTestSuite * apSuite, void * apContext)
     std::vector<std::pair<DataVersionFilter, size_t>> filterVector;
     AttributeCache::SortFilterMap(filterMap, filterVector);
     size_t temp = 0;
-    for (auto & item : filterVector)
+    for (auto item = filterVector.rbegin(); item != filterVector.rend(); item++)
     {
-        NL_TEST_ASSERT(gSuite, temp < item.second);
-        temp = item.second;
+        NL_TEST_ASSERT(gSuite, temp < item->second);
+        temp = item->second;
     }
 
     filterMap.clear();
@@ -644,10 +644,10 @@ void TestSortDataVersionFilterSet(nlTestSuite * apSuite, void * apContext)
     filterMap[filter6] = 3;
     AttributeCache::SortFilterMap(filterMap, filterVector);
     temp = 0;
-    for (auto & item : filterVector)
+    for (auto item = filterVector.rbegin(); item != filterVector.rend(); item++)
     {
-        NL_TEST_ASSERT(gSuite, temp < item.second);
-        temp = item.second;
+        NL_TEST_ASSERT(gSuite, temp < item->second);
+        temp = item->second;
     }
 }
 

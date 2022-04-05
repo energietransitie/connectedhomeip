@@ -280,15 +280,15 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
 
 bool vector_compare(const std::pair<DataVersionFilter, size_t> & x, const std::pair<DataVersionFilter, size_t> & y)
 {
-    return x.second < y.second;
+    return x.second > y.second;
 }
 
 void AttributeCache::SortFilterMap(std::map<DataVersionFilter, size_t> & aMap,
                                    std::vector<std::pair<DataVersionFilter, size_t>> & aVector)
 {
-    for (auto item = aMap.begin(); item != aMap.end(); item++)
+    for (auto & item : aMap)
     {
-        aVector.push_back(std::make_pair(item->first, item->second));
+        aVector.push_back(std::make_pair(item.first, item.second));
     }
     std::sort(aVector.begin(), aVector.end(), vector_compare);
 }
@@ -305,7 +305,7 @@ uint32_t AttributeCache::OnUpdateDataVersionFilterList(DataVersionFilterIBs::Bui
     std::vector<std::pair<DataVersionFilter, size_t>> filterVector;
     SortFilterMap(filterMap, filterVector);
 
-    for (auto filter = filterVector.rbegin(); filter != filterVector.rend(); filter++)
+    for (auto & filter : filterVector)
     {
         bool intersected = false;
         aDataVersionFilterIBsBuilder.Checkpoint(backup);
@@ -313,7 +313,7 @@ uint32_t AttributeCache::OnUpdateDataVersionFilterList(DataVersionFilterIBs::Bui
         // if the particular cached data version does not intersect with user provided attribute paths, skip the cached one
         for (auto & attribute : aAttributePaths)
         {
-            if (attribute.IsAttributePathIntersect(filter->first))
+            if (attribute.IsAttributePathIntersect(filter.first))
             {
                 intersected = true;
                 break;
@@ -329,11 +329,11 @@ uint32_t AttributeCache::OnUpdateDataVersionFilterList(DataVersionFilterIBs::Bui
         ClusterPathIB::Builder & filterPath = filterIB.CreatePath();
         SuccessOrExit(err = filterIB.GetError());
         SuccessOrExit(
-            err = filterPath.Endpoint(filter->first.mEndpointId).Cluster(filter->first.mClusterId).EndOfClusterPathIB().GetError());
-        SuccessOrExit(err = filterIB.DataVersion(filter->first.mDataVersion.Value()).EndOfDataVersionFilterIB().GetError());
+            err = filterPath.Endpoint(filter.first.mEndpointId).Cluster(filter.first.mClusterId).EndOfClusterPathIB().GetError());
+        SuccessOrExit(err = filterIB.DataVersion(filter.first.mDataVersion.Value()).EndOfDataVersionFilterIB().GetError());
         ChipLogProgress(DataManagement,
                         "Update DataVersionFilter: Endpoint=%" PRIu16 " Cluster=" ChipLogFormatMEI " Version=%" PRIu32,
-                        filter->first.mEndpointId, ChipLogValueMEI(filter->first.mClusterId), filter->first.mDataVersion.Value());
+                        filter.first.mEndpointId, ChipLogValueMEI(filter.first.mClusterId), filter.first.mDataVersion.Value());
 
         number++;
     }
