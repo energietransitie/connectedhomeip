@@ -62,12 +62,12 @@ namespace app {
 class AttributeCache : protected ReadClient::Callback
 {
 public:
-    struct PacketBufferInfo
+    struct VersionedAttributeBuffer
     {
         System::PacketBufferHandle mHandle;
         DataVersion mDataVersion = 0;
 
-        PacketBufferInfo(System::PacketBufferHandle && aHandle, DataVersion aDataVersion) :
+        VersionedAttributeBuffer(System::PacketBufferHandle && aHandle, DataVersion aDataVersion) :
             mHandle(std::move(aHandle)), mDataVersion(aDataVersion)
         {}
     };
@@ -326,7 +326,7 @@ public:
     }
 
 private:
-    using AttributeState = Variant<PacketBufferInfo, StatusIB>;
+    using AttributeState = Variant<VersionedAttributeBuffer, StatusIB>;
     using ClusterState   = std::map<AttributeId, AttributeState>;
     using EndpointState  = std::map<ClusterId, ClusterState>;
     using NodeState      = std::map<EndpointId, EndpointState>;

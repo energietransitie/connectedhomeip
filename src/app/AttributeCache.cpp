@@ -47,7 +47,7 @@ CHIP_ERROR AttributeCache::UpdateCache(const ConcreteDataAttributePath & aPath, 
         handle.RightSize();
 
         assert(aPath.mDataVersion.HasValue());
-        state.Set<PacketBufferInfo>(std::move(handle), aPath.mDataVersion.Value());
+        state.Set<VersionedAttributeBuffer>(std::move(handle), aPath.mDataVersion.Value());
     }
     else
     {
@@ -146,7 +146,7 @@ CHIP_ERROR AttributeCache::Get(const ConcreteAttributePath & path, TLV::TLVReade
 
     System::PacketBufferTLVReader bufReader;
 
-    bufReader.Init(attributeState->Get<PacketBufferInfo>().mHandle.Retain());
+    bufReader.Init(attributeState->Get<VersionedAttributeBuffer>().mHandle.Retain());
     ReturnErrorOnFailure(bufReader.Next());
 
     reader.Init(bufReader);
@@ -167,7 +167,7 @@ CHIP_ERROR AttributeCache::GetVersion(const ConcreteAttributePath & path, Option
 
     System::PacketBufferTLVReader bufReader;
 
-    aVersion.SetValue(attributeState->Get<PacketBufferInfo>().mDataVersion);
+    aVersion.SetValue(attributeState->Get<VersionedAttributeBuffer>().mDataVersion);
     return CHIP_NO_ERROR;
 }
 
@@ -255,7 +255,7 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
                 {
                     TLV::TLVReader reader;
                     System::PacketBufferTLVReader bufReader;
-                    bufReader.Init(attributeIter.second.Get<PacketBufferInfo>().mHandle.Retain());
+                    bufReader.Init(attributeIter.second.Get<VersionedAttributeBuffer>().mHandle.Retain());
                     ReturnOnFailure(bufReader.Next());
 
                     reader.Init(bufReader);
@@ -265,7 +265,7 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
                     // Compute the amount of value data
                     clusterSize += reader.GetLengthRead();
 
-                    dataVersion = attributeIter.second.Get<PacketBufferInfo>().mDataVersion;
+                    dataVersion = attributeIter.second.Get<VersionedAttributeBuffer>().mDataVersion;
                 }
             }
             if (clusterSize == 0)
