@@ -38,7 +38,7 @@ using namespace chip::Protocols;
 namespace {
 
 constexpr EndpointId kTestEndpointId = 1;
-constexpr DataVersion kDataVersion   = 5;
+static DataVersion sDataVersion      = 5;
 
 enum ResponseDirective
 {
@@ -67,8 +67,8 @@ CHIP_ERROR ReadSingleClusterData(const Access::SubjectDescriptor & aSubjectDescr
         {
             AttributeValueEncoder::AttributeEncodeState state =
                 (apEncoderState == nullptr ? AttributeValueEncoder::AttributeEncodeState() : *apEncoderState);
-            AttributeValueEncoder valueEncoder(aAttributeReports, aSubjectDescriptor.fabricIndex, aPath, 0 /* data version */,
-                                               aIsFabricFiltered, state);
+            AttributeValueEncoder valueEncoder(aAttributeReports, aSubjectDescriptor.fabricIndex, aPath,
+                                               sDataVersion /* data version */, aIsFabricFiltered, state);
 
             return valueEncoder.EncodeList([aSubjectDescriptor](const auto & encoder) -> CHIP_ERROR {
                 app::Clusters::TestCluster::Structs::TestFabricScoped::Type val;
@@ -84,8 +84,8 @@ CHIP_ERROR ReadSingleClusterData(const Access::SubjectDescriptor & aSubjectDescr
         {
             AttributeValueEncoder::AttributeEncodeState state =
                 (apEncoderState == nullptr ? AttributeValueEncoder::AttributeEncodeState() : *apEncoderState);
-            AttributeValueEncoder valueEncoder(aAttributeReports, aSubjectDescriptor.fabricIndex, aPath, 0 /* data version */,
-                                               aIsFabricFiltered, state);
+            AttributeValueEncoder valueEncoder(aAttributeReports, aSubjectDescriptor.fabricIndex, aPath,
+                                               sDataVersion /* data version */, aIsFabricFiltered, state);
 
             return valueEncoder.Encode(++totalReadCount);
         }
@@ -107,7 +107,7 @@ CHIP_ERROR ReadSingleClusterData(const Access::SubjectDescriptor & aSubjectDescr
                 i++;
             }
 
-            attributeData.DataVersion(kDataVersion);
+            attributeData.DataVersion(sDataVersion);
             ReturnErrorOnFailure(attributeData.GetError());
             AttributePathIB::Builder & attributePath = attributeData.CreatePath();
             attributePath.Endpoint(aPath.mEndpointId)
@@ -144,7 +144,7 @@ CHIP_ERROR ReadSingleClusterData(const Access::SubjectDescriptor & aSubjectDescr
 
 bool IsClusterDataVersionEqual(const ConcreteClusterPath & aConcreteClusterPath, DataVersion aRequiredDataVersion)
 {
-    if (aRequiredDataVersion == kDataVersion)
+    if (aRequiredDataVersion == sDataVersion)
     {
         return true;
     }
@@ -286,7 +286,7 @@ void TestReadInteraction::TestReadAttributeResponse(nlTestSuite * apSuite, void 
     auto onSuccessCb = [apSuite, &onSuccessCbInvoked](const app::ConcreteDataAttributePath & attributePath,
                                                       const auto & dataResponse) {
         uint8_t i = 0;
-        NL_TEST_ASSERT(apSuite, attributePath.mDataVersion.HasValue() && attributePath.mDataVersion.Value() == kDataVersion);
+        NL_TEST_ASSERT(apSuite, attributePath.mDataVersion.HasValue() && attributePath.mDataVersion.Value() == sDataVersion);
         auto iter = dataResponse.begin();
         while (iter.Next())
         {
@@ -347,7 +347,7 @@ void TestReadInteraction::TestReadDataVersionFilter(nlTestSuite * apSuite, void 
         onFailureCbInvoked = true;
     };
 
-    Optional<DataVersion> dataVersion(kDataVersion);
+    Optional<DataVersion> dataVersion(sDataVersion);
     Controller::ReadAttribute<TestCluster::Attributes::ListStructOctetString::TypeInfo>(
         &ctx.GetExchangeManager(), sessionHandle, kTestEndpointId, onSuccessCb, onFailureCb, true, dataVersion);
 
@@ -381,10 +381,7 @@ void TestReadInteraction::TestReadAttributeResponseWithCache(nlTestSuite * apSui
     app::ReadClient readClient(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
                                chip::app::ReadClient::InteractionType::Read);
     CHIP_ERROR err = readClient.SendRequest(readParams);
-    if (err != CHIP_NO_ERROR)
-    {
-        ChipLogError(Controller, "Failed to send read request for testing clusters");
-    }
+    NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
     ctx.DrainAndServiceIO();
     NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
     NL_TEST_ASSERT(apSuite, !delegate.mReadError);
@@ -392,15 +389,39 @@ void TestReadInteraction::TestReadAttributeResponseWithCache(nlTestSuite * apSui
     app::ReadClient readClient1(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
                                 chip::app::ReadClient::InteractionType::Read);
     err = readClient1.SendRequest(readParams);
-    if (err != CHIP_NO_ERROR)
-    {
-        ChipLogError(Controller, "Failed to send read request for testing clusters");
-    }
+    NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
     ctx.DrainAndServiceIO();
     NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 0);
     NL_TEST_ASSERT(apSuite, !delegate.mReadError);
     NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadClients() == 0);
     NL_TEST_ASSERT(apSuite, engine->GetNumActiveReadHandlers() == 0);
+
+    // Validate the different data version filter for different attribute with same cluster, that cluster's data version filter
+    // would not be created.
+    sDataVersion += 1;
+    app::ReadClient readClient2(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                                chip::app::ReadClient::InteractionType::Read);
+    app::AttributePathParams readPaths2[3];
+
+    readPaths2[0] = app::AttributePathParams(kTestEndpointId, app::Clusters::TestCluster::Id, TestCluster::Attributes::Int16u::Id);
+    readPaths2[1] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::VendorID::Id);
+    readPaths2[2] = app::AttributePathParams(kTestEndpointId, app::Clusters::Basic::Id, Basic::Attributes::ProductID::Id);
+    readParams.mpAttributePathParamsList    = readPaths2;
+    readParams.mAttributePathParamsListSize = 3;
+
+    err = readClient2.SendRequest(readParams);
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    delegate.mNumAttributeResponse = 0;
+
+    app::ReadClient readClient3(engine, &ctx.GetExchangeManager(), cache.GetBufferedCallback(),
+                                chip::app::ReadClient::InteractionType::Read);
+    err = readClient3.SendRequest(readParams);
+    ctx.DrainAndServiceIO();
+    NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 1);
+    NL_TEST_ASSERT(apSuite, !delegate.mReadError);
+    sDataVersion -= 1;
     NL_TEST_ASSERT(apSuite, ctx.GetExchangeManager().GetNumActiveExchanges() == 0);
 }
 
@@ -477,7 +498,6 @@ void TestReadInteraction::TestReadAttributeResponseWithCacheRollback(nlTestSuite
     CHIP_ERROR err = readClient.SendRequest(readParams);
     NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
     ctx.DrainAndServiceIO();
-    ChipLogError(Controller, "Debug!! %d", delegate.mNumAttributeResponse);
     NL_TEST_ASSERT(apSuite, delegate.mNumAttributeResponse == 3);
     NL_TEST_ASSERT(apSuite, !delegate.mReadError);
     delegate.mNumAttributeResponse = 0;
@@ -1011,7 +1031,7 @@ void TestReadInteraction::TestReadHandler_MultipleSubscriptionsWithDataVersionFi
     // not safe to do so.
     auto onSuccessCb = [apSuite, &numSuccessCalls](const app::ConcreteDataAttributePath & attributePath,
                                                    const auto & dataResponse) {
-        NL_TEST_ASSERT(apSuite, attributePath.mDataVersion.HasValue() && attributePath.mDataVersion.Value() == kDataVersion);
+        NL_TEST_ASSERT(apSuite, attributePath.mDataVersion.HasValue() && attributePath.mDataVersion.Value() == sDataVersion);
         numSuccessCalls++;
     };
 
@@ -1258,10 +1278,6 @@ const nlTest sTests[] =
 {
     NL_TEST_DEF("TestReadAttributeResponse", TestReadInteraction::TestReadAttributeResponse),
     NL_TEST_DEF("TestReadDataVersionFilter", TestReadInteraction::TestReadDataVersionFilter),
-    NL_TEST_DEF("TestReadAttributeResponseWithCache", TestReadInteraction::TestReadAttributeResponseWithCache),
-    NL_TEST_DEF("TestReadAttributeResponseWithCachePartialRollback", TestReadInteraction::TestReadAttributeResponseWithCachePartialRollback),
-    NL_TEST_DEF("TestReadAttributeResponseWithCacheRollback", TestReadInteraction::TestReadAttributeResponseWithCacheRollback),
-    NL_TEST_DEF("TestSubscribeAttributeResponseWithCache", TestReadInteraction::TestSubscribeAttributeResponseWithCache),
     NL_TEST_DEF("TestReadEventResponse", TestReadInteraction::TestReadEventResponse),
     NL_TEST_DEF("TestReadAttributeError", TestReadInteraction::TestReadAttributeError),
     NL_TEST_DEF("TestReadFabricScopedWithoutFabricFilter", TestReadInteraction::TestReadFabricScopedWithoutFabricFilter),
@@ -1276,6 +1292,10 @@ const nlTest sTests[] =
     NL_TEST_DEF("TestReadHandlerResourceExhaustion_MultipleReads", TestReadInteraction::TestReadHandlerResourceExhaustion_MultipleReads),
     NL_TEST_DEF("TestReadAttributeTimeout", TestReadInteraction::TestReadAttributeTimeout),
     NL_TEST_DEF("TestReadHandler_SubscriptionAlteredReportingIntervals", TestReadInteraction::TestReadHandler_SubscriptionAlteredReportingIntervals),
+    NL_TEST_DEF("TestReadAttributeResponseWithCache", TestReadInteraction::TestReadAttributeResponseWithCache),
+    NL_TEST_DEF("TestReadAttributeResponseWithCachePartialRollback", TestReadInteraction::TestReadAttributeResponseWithCachePartialRollback),
+    NL_TEST_DEF("TestReadAttributeResponseWithCacheRollback", TestReadInteraction::TestReadAttributeResponseWithCacheRollback),
+    NL_TEST_DEF("TestSubscribeAttributeResponseWithCache", TestReadInteraction::TestSubscribeAttributeResponseWithCache),
     NL_TEST_SENTINEL()
 };
 // clang-format on
