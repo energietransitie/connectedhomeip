@@ -321,8 +321,8 @@ private:
         Optional<DataVersion> mCommittedDataVersion;
         Optional<DataVersion> mPendingDataVersion;
     };
-    using EndpointState  = std::map<ClusterId, ClusterState>;
-    using NodeState      = std::map<EndpointId, EndpointState>;
+    using EndpointState = std::map<ClusterId, ClusterState>;
+    using NodeState     = std::map<EndpointId, EndpointState>;
 
     /*
      * These functions provide a way to index into the cached state with different sub-sets of a path, returning
@@ -373,7 +373,7 @@ private:
     virtual void OnAddWildcardAttributePath(const AttributePathParams & aAttributePathParams) override;
 
     virtual void OnClearWildcardAttributePath(const ReadClient * apReadClient) override;
-    void GetSortedFilters(std::vector<std::pair<DataVersionFilter, size_t>>& aVector);
+    void GetSortedFilters(std::vector<std::pair<DataVersionFilter, size_t>> & aVector);
 
 private:
     Callback & mCallback;

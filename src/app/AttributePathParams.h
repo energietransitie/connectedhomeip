@@ -20,8 +20,8 @@
 
 #include <app/ConcreteAttributePath.h>
 #include <app/DataVersionFilter.h>
-#include <set>
 #include <app/util/basic-types.h>
+#include <set>
 
 namespace chip {
 namespace app {
@@ -102,7 +102,7 @@ struct AttributePathParams
 
     bool IsWildcardRequest(const std::set<AttributePathParams> & aPathSet) const
     {
-        for(auto path : aPathSet)
+        for (auto path : aPathSet)
         {
             if (path.HasWildcardEndpointId())
             {
@@ -126,11 +126,11 @@ struct AttributePathParams
         return mEndpointId < aOther.mEndpointId || mClusterId < aOther.mClusterId;
     }
 
-    ClusterId mClusterId     = kInvalidClusterId;   // uint32
-    AttributeId mAttributeId = kInvalidAttributeId; // uint32
-    EndpointId mEndpointId   = kInvalidEndpointId;  // uint16
-    ListIndex mListIndex     = kInvalidListIndex;   // uint16
-    ReadClient *mpReadClient     = nullptr;
+    ClusterId mClusterId      = kInvalidClusterId;   // uint32
+    AttributeId mAttributeId  = kInvalidAttributeId; // uint32
+    EndpointId mEndpointId    = kInvalidEndpointId;  // uint16
+    ListIndex mListIndex      = kInvalidListIndex;   // uint16
+    ReadClient * mpReadClient = nullptr;
 };
 
 } // namespace app

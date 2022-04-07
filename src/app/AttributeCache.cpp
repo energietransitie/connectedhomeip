@@ -71,7 +71,7 @@ CHIP_ERROR AttributeCache::UpdateCache(const ConcreteDataAttributePath & aPath, 
     }
 
     mCache[aPath.mEndpointId][aPath.mClusterId].mState[aPath.mAttributeId] = std::move(state);
-    mCache[aPath.mEndpointId][aPath.mClusterId].mPendingDataVersion = version;
+    mCache[aPath.mEndpointId][aPath.mClusterId].mPendingDataVersion        = version;
     mCache[aPath.mEndpointId][aPath.mClusterId].mCommittedDataVersion.ClearValue();
     mChangedAttributeSet.insert(aPath);
     return CHIP_NO_ERROR;
@@ -90,7 +90,7 @@ void AttributeCache::OnReportEnd()
 
     for (auto & endpointIter : mCache)
     {
-        for (auto &clusterIter : endpointIter.second)
+        for (auto & clusterIter : endpointIter.second)
         {
             clusterIter.second.mCommittedDataVersion = clusterIter.second.mPendingDataVersion;
         }
@@ -252,7 +252,7 @@ bool vector_compare(const std::pair<DataVersionFilter, size_t> & x, const std::p
     return x.second > y.second;
 }
 
-void AttributeCache::GetSortedFilters(std::vector<std::pair<DataVersionFilter, size_t>>& aVector)
+void AttributeCache::GetSortedFilters(std::vector<std::pair<DataVersionFilter, size_t>> & aVector)
 {
     for (auto const & endpointIter : mCache)
     {
@@ -360,11 +360,14 @@ void AttributeCache::OnAddWildcardAttributePath(const AttributePathParams & aAtt
 
 void AttributeCache::OnClearWildcardAttributePath(const ReadClient * apReadClient)
 {
-    for (auto it = mRequestPathSet.begin(); it != mRequestPathSet.end(); ) {
-        if (it->mpReadClient == apReadClient) {
+    for (auto it = mRequestPathSet.begin(); it != mRequestPathSet.end();)
+    {
+        if (it->mpReadClient == apReadClient)
+        {
             it = mRequestPathSet.erase(it);
         }
-        else {
+        else
+        {
             ++it;
         }
     }
