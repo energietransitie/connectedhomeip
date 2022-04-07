@@ -62,16 +62,6 @@ namespace app {
 class AttributeCache : protected ReadClient::Callback
 {
 public:
-    struct VersionedAttributeBuffer
-    {
-        System::PacketBufferHandle mHandle;
-        DataVersion mDataVersion = 0;
-
-        VersionedAttributeBuffer(System::PacketBufferHandle && aHandle, DataVersion aDataVersion) :
-            mHandle(std::move(aHandle)), mDataVersion(aDataVersion)
-        {}
-    };
-
     class Callback : public ReadClient::Callback
     {
     public:
@@ -226,9 +216,7 @@ public:
      */
     CHIP_ERROR Get(const ConcreteAttributePath & path, TLV::TLVReader & reader);
 
-    CHIP_ERROR GetVersion(const ConcreteAttributePath & path, Optional<DataVersion> & aVersion);
-
-    void UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap);
+    CHIP_ERROR GetVersion(EndpointId mEndpointId, ClusterId mClusterId, Optional<DataVersion> & aVersion);
 
     static void SortFilterMap(std::map<DataVersionFilter, size_t> & aMap,
                               std::vector<std::pair<DataVersionFilter, size_t>> & aVector);
@@ -256,7 +244,7 @@ public:
         auto clusterState = GetClusterState(endpointId, clusterId, err);
         ReturnErrorOnFailure(err);
 
-        for (auto & attributeIter : *clusterState)
+        for (auto & attributeIter : clusterState->mState)
         {
             const ConcreteAttributePath path(endpointId, clusterId, attributeIter.first);
             ReturnErrorOnFailure(func(path));
@@ -287,7 +275,7 @@ public:
             {
                 if (clusterIter.first == clusterId)
                 {
-                    for (auto & attributeIter : clusterIter.second)
+                    for (auto & attributeIter : clusterIter.second.mState)
                     {
                         const ConcreteAttributePath path(endpointIter.first, clusterId, attributeIter.first);
                         ReturnErrorOnFailure(func(path));
@@ -326,8 +314,13 @@ public:
     }
 
 private:
-    using AttributeState = Variant<VersionedAttributeBuffer, StatusIB>;
-    using ClusterState   = std::map<AttributeId, AttributeState>;
+    using AttributeState = Variant<System::PacketBufferHandle, StatusIB>;
+    struct ClusterState
+    {
+        std::map<AttributeId, AttributeState> mState;
+        Optional<DataVersion> mCommittedDataVersion;
+        Optional<DataVersion> mPendingDataVersion;
+    };
     using EndpointState  = std::map<ClusterId, ClusterState>;
     using NodeState      = std::map<EndpointId, EndpointState>;
 
@@ -377,12 +370,16 @@ private:
 
     uint32_t OnUpdateDataVersionFilterList(DataVersionFilterIBs::Builder & aDataVersionFilterIBsBuilder,
                                            const Span<AttributePathParams> & aAttributePaths) override;
+    virtual void OnAddWildcardAttributePath(const AttributePathParams & aAttributePathParams) override;
+
+    virtual void OnClearWildcardAttributePath(const ReadClient * apReadClient) override;
+    void GetSortedFilters(std::vector<std::pair<DataVersionFilter, size_t>>& aVector);
 
 private:
     Callback & mCallback;
     NodeState mCache;
     std::set<ConcreteDataAttributePath> mChangedAttributeSet;
-
+    std::set<AttributePathParams> mRequestPathSet; // wildcard attribute request path only
     std::vector<EndpointId> mAddedEndpoints;
     BufferedReadCallback mBufferedReader;
 };

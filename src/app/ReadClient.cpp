@@ -155,6 +155,7 @@ void ReadClient::Close(CHIP_ERROR aError)
     {
         StopResubscription();
     }
+    mpCallback.OnClearWildcardAttributePath(this);
     mpCallback.OnDone();
 }
 
@@ -211,6 +212,10 @@ CHIP_ERROR ReadClient::SendReadRequest(ReadPrepareParams & aReadPrepareParams)
     Span<EventPathParams> eventPaths(aReadPrepareParams.mpEventPathParamsList, aReadPrepareParams.mEventPathParamsListSize);
     Span<DataVersionFilter> dataVersionFilters(aReadPrepareParams.mpDataVersionFilterList,
                                                aReadPrepareParams.mDataVersionFilterListSize);
+    for (auto & attribute : attributePaths)
+    {
+        attribute.mpReadClient = this;
+    }
 
     {
         System::PacketBufferTLVWriter writer;
@@ -349,6 +354,10 @@ CHIP_ERROR ReadClient::GenerateAttributePaths(AttributePathIBs::Builder & aAttri
         AttributePathIB::Builder & path = aAttributePathIBsBuilder.CreatePath();
         ReturnErrorOnFailure(aAttributePathIBsBuilder.GetError());
         ReturnErrorOnFailure(path.Encode(attribute));
+        if (attribute.HasAttributeWildcard())
+        {
+            mpCallback.OnAddWildcardAttributePath(attribute);
+        }
     }
 
     aAttributePathIBsBuilder.EndOfAttributePathIBs();
@@ -871,6 +880,10 @@ CHIP_ERROR ReadClient::SendSubscribeRequest(ReadPrepareParams & aReadPreparePara
     Span<EventPathParams> eventPaths(aReadPrepareParams.mpEventPathParamsList, aReadPrepareParams.mEventPathParamsListSize);
     Span<DataVersionFilter> dataVersionFilters(aReadPrepareParams.mpDataVersionFilterList,
                                                aReadPrepareParams.mDataVersionFilterListSize);
+    for (auto & attribute : attributePaths)
+    {
+        attribute.mpReadClient = this;
+    }
 
     msgBuf = System::PacketBufferHandle::New(kMaxSecureSduLengthBytes);
     VerifyOrReturnError(!msgBuf.IsNull(), err = CHIP_ERROR_NO_MEMORY);
@@ -992,8 +1005,8 @@ void ReadClient::OnResubscribeTimerCallback(System::Layer * apSystemLayer, void 
 {
     ReadClient * const _this = reinterpret_cast<ReadClient *>(apAppState);
     assert(_this != nullptr);
-    _this->SendSubscribeRequest(_this->mReadPrepareParams);
     _this->mNumRetries++;
+    _this->SendSubscribeRequest(_this->mReadPrepareParams);
 }
 
 bool ReadClient::ResubscribeIfNeeded()

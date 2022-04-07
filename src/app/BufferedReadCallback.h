@@ -90,6 +90,12 @@ private:
         return mCallback.OnUpdateDataVersionFilterList(aDataVersionFilterIBsBuilder, aAttributePaths);
     }
 
+    virtual void OnAddWildcardAttributePath(const AttributePathParams & aAttributePathParams) override
+    {
+        mCallback.OnAddWildcardAttributePath(aAttributePathParams);
+    }
+    virtual void OnClearWildcardAttributePath(const ReadClient * apReadClient) override;
+
 private:
     /*
      * Given a reader positioned at a list element, allocate a packet buffer, copy the list item where

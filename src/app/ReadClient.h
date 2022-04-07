@@ -178,6 +178,9 @@ public:
         {
             return 0;
         }
+
+        virtual void OnAddWildcardAttributePath(const AttributePathParams & aAttributePathParams){}
+        virtual void OnClearWildcardAttributePath(const ReadClient * apReadClient) {};
     };
 
     enum class InteractionType : uint8_t

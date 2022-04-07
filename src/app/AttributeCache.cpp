@@ -30,6 +30,7 @@ CHIP_ERROR AttributeCache::UpdateCache(const ConcreteDataAttributePath & aPath, 
     AttributeState state;
     System::PacketBufferHandle handle;
     System::PacketBufferTLVWriter writer;
+    Optional<DataVersion> version;
 
     if (apData)
     {
@@ -46,8 +47,14 @@ CHIP_ERROR AttributeCache::UpdateCache(const ConcreteDataAttributePath & aPath, 
         //
         handle.RightSize();
 
-        assert(aPath.mDataVersion.HasValue());
-        state.Set<VersionedAttributeBuffer>(std::move(handle), aPath.mDataVersion.Value());
+        state.Set<System::PacketBufferHandle>(std::move(handle));
+
+        AttributePathParams cluster(aPath.mEndpointId, aPath.mClusterId);
+        if (cluster.IsWildcardRequest(mRequestPathSet))
+        {
+            version = aPath.mDataVersion;
+            mRequestPathSet.insert(cluster);
+        }
     }
     else
     {
@@ -63,7 +70,9 @@ CHIP_ERROR AttributeCache::UpdateCache(const ConcreteDataAttributePath & aPath, 
         mAddedEndpoints.push_back(aPath.mEndpointId);
     }
 
-    mCache[aPath.mEndpointId][aPath.mClusterId][aPath.mAttributeId] = std::move(state);
+    mCache[aPath.mEndpointId][aPath.mClusterId].mState[aPath.mAttributeId] = std::move(state);
+    mCache[aPath.mEndpointId][aPath.mClusterId].mPendingDataVersion = version;
+    mCache[aPath.mEndpointId][aPath.mClusterId].mCommittedDataVersion.ClearValue();
     mChangedAttributeSet.insert(aPath);
     return CHIP_NO_ERROR;
 }
@@ -78,6 +87,14 @@ void AttributeCache::OnReportBegin()
 void AttributeCache::OnReportEnd()
 {
     std::set<std::tuple<EndpointId, ClusterId>> changedClusters;
+
+    for (auto & endpointIter : mCache)
+    {
+        for (auto &clusterIter : endpointIter.second)
+        {
+            clusterIter.second.mCommittedDataVersion = clusterIter.second.mPendingDataVersion;
+        }
+    }
 
     //
     // Add the EndpointId and ClusterId into a set so that we only
@@ -146,28 +163,19 @@ CHIP_ERROR AttributeCache::Get(const ConcreteAttributePath & path, TLV::TLVReade
 
     System::PacketBufferTLVReader bufReader;
 
-    bufReader.Init(attributeState->Get<VersionedAttributeBuffer>().mHandle.Retain());
+    bufReader.Init(attributeState->Get<System::PacketBufferHandle>().Retain());
     ReturnErrorOnFailure(bufReader.Next());
 
     reader.Init(bufReader);
     return CHIP_NO_ERROR;
 }
 
-CHIP_ERROR AttributeCache::GetVersion(const ConcreteAttributePath & path, Optional<DataVersion> & aVersion)
+CHIP_ERROR AttributeCache::GetVersion(EndpointId mEndpointId, ClusterId mClusterId, Optional<DataVersion> & aVersion)
 {
     CHIP_ERROR err;
-
-    auto attributeState = GetAttributeState(path.mEndpointId, path.mClusterId, path.mAttributeId, err);
+    auto clusterState = GetClusterState(mEndpointId, mClusterId, err);
     ReturnErrorOnFailure(err);
-
-    if (attributeState->Is<StatusIB>())
-    {
-        return CHIP_ERROR_IM_STATUS_CODE_RECEIVED;
-    }
-
-    System::PacketBufferTLVReader bufReader;
-
-    aVersion.SetValue(attributeState->Get<VersionedAttributeBuffer>().mDataVersion);
+    aVersion = clusterState->mCommittedDataVersion;
     return CHIP_NO_ERROR;
 }
 
@@ -212,8 +220,8 @@ AttributeCache::AttributeState * AttributeCache::GetAttributeState(EndpointId en
         return nullptr;
     }
 
-    auto attributeState = clusterState->find(attributeId);
-    if (attributeState == clusterState->end())
+    auto attributeState = clusterState->mState.find(attributeId);
+    if (attributeState == clusterState->mState.end())
     {
         err = CHIP_ERROR_KEY_NOT_FOUND;
         return nullptr;
@@ -239,7 +247,12 @@ CHIP_ERROR AttributeCache::GetStatus(const ConcreteAttributePath & path, StatusI
     return CHIP_NO_ERROR;
 }
 
-void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
+bool vector_compare(const std::pair<DataVersionFilter, size_t> & x, const std::pair<DataVersionFilter, size_t> & y)
+{
+    return x.second > y.second;
+}
+
+void AttributeCache::GetSortedFilters(std::vector<std::pair<DataVersionFilter, size_t>>& aVector)
 {
     for (auto const & endpointIter : mCache)
     {
@@ -249,15 +262,21 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
             DataVersion dataVersion = 0;
             uint32_t clusterSize    = 0;
             ClusterId clusterId     = clusterIter.first;
-            bool versionMismatch    = false;
-            bool isFirst            = true;
-            for (auto const & attributeIter : clusterIter.second)
+            if (!clusterIter.second.mCommittedDataVersion.HasValue())
+            {
+                continue;
+            }
+            else
+            {
+                dataVersion = clusterIter.second.mCommittedDataVersion.Value();
+            }
+            for (auto const & attributeIter : clusterIter.second.mState)
             {
                 if (!attributeIter.second.Is<StatusIB>())
                 {
                     TLV::TLVReader reader;
                     System::PacketBufferTLVReader bufReader;
-                    bufReader.Init(attributeIter.second.Get<VersionedAttributeBuffer>().mHandle.Retain());
+                    bufReader.Init(attributeIter.second.Get<System::PacketBufferHandle>().Retain());
                     ReturnOnFailure(bufReader.Next());
 
                     reader.Init(bufReader);
@@ -266,22 +285,7 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
 
                     // Compute the amount of value data
                     clusterSize += reader.GetLengthRead();
-
-                    if (!isFirst && dataVersion != attributeIter.second.Get<VersionedAttributeBuffer>().mDataVersion)
-                    {
-                        versionMismatch = true;
-                        break;
-                    }
-                    else
-                    {
-                        isFirst     = false;
-                        dataVersion = attributeIter.second.Get<VersionedAttributeBuffer>().mDataVersion;
-                    }
                 }
-            }
-            if (versionMismatch)
-            {
-                continue;
             }
             if (clusterSize == 0)
             {
@@ -289,22 +293,9 @@ void AttributeCache::UpdateFilterMap(std::map<DataVersionFilter, size_t> & aMap)
             }
 
             DataVersionFilter filter(endpointId, clusterId, dataVersion);
-            aMap[filter] = clusterSize;
+
+            aVector.push_back(std::make_pair(filter, clusterSize));
         }
-    }
-}
-
-bool vector_compare(const std::pair<DataVersionFilter, size_t> & x, const std::pair<DataVersionFilter, size_t> & y)
-{
-    return x.second > y.second;
-}
-
-void AttributeCache::SortFilterMap(std::map<DataVersionFilter, size_t> & aMap,
-                                   std::vector<std::pair<DataVersionFilter, size_t>> & aVector)
-{
-    for (auto & item : aMap)
-    {
-        aVector.push_back(std::make_pair(item.first, item.second));
     }
     std::sort(aVector.begin(), aVector.end(), vector_compare);
 }
@@ -316,17 +307,15 @@ uint32_t AttributeCache::OnUpdateDataVersionFilterList(DataVersionFilterIBs::Bui
     CHIP_ERROR err  = CHIP_NO_ERROR;
     TLV::TLVWriter backup;
 
-    std::map<DataVersionFilter, size_t> filterMap;
-    UpdateFilterMap(filterMap);
     std::vector<std::pair<DataVersionFilter, size_t>> filterVector;
-    SortFilterMap(filterMap, filterVector);
+    GetSortedFilters(filterVector);
 
     for (auto & filter : filterVector)
     {
         bool intersected = false;
         aDataVersionFilterIBsBuilder.Checkpoint(backup);
 
-        // if the particular cached data version does not intersect with user provided attribute paths, skip the cached one
+        // if the particular cached cluster does not intersect with user provided attribute paths, skip the cached one
         for (auto & attribute : aAttributePaths)
         {
             if (attribute.IsAttributePathIntersect(filter.first))
@@ -360,8 +349,25 @@ exit:
         ChipLogProgress(DataManagement, "OnUpdateDataVersionFilterList rollbacks");
         aDataVersionFilterIBsBuilder.Rollback(backup);
     }
+    mRequestPathSet.clear();
     return number;
 }
 
+void AttributeCache::OnAddWildcardAttributePath(const AttributePathParams & aAttributePathParams)
+{
+    mRequestPathSet.insert(aAttributePathParams);
+}
+
+void AttributeCache::OnClearWildcardAttributePath(const ReadClient * apReadClient)
+{
+    for (auto it = mRequestPathSet.begin(); it != mRequestPathSet.end(); ) {
+        if (it->mpReadClient == apReadClient) {
+            it = mRequestPathSet.erase(it);
+        }
+        else {
+            ++it;
+        }
+    }
+}
 } // namespace app
 } // namespace chip
