@@ -1,76 +1,72 @@
-# Copyright (c) 2020 Project CHIP Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+FROM ubuntu:20.04
 
-ARG BUILD_VERSION
-
-# All tools required for compilation belong in chip-build, forms "truth" for CHIP build tooling
-FROM connectedhomeip/chip-build-vscode:${BUILD_VERSION}
-
-# This Dockerfile contains things useful for an interactive development environment
 ARG USERNAME=vscode
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-ENV LANG en_US.utf8
 
-# these are installed for terminal/dev convenience.  If more tooling for build is required, please
-#  add them to chip-build (in integrations/docker/images/chip-build)
-RUN apt-get update
-RUN apt-get install -y locales && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
-RUN apt-get -fy install git vim emacs sudo \
-    apt-utils dialog zsh \
-    iproute2 procps lsb-release \
-    bash-completion \
-    build-essential cmake cppcheck valgrind \
-    wget curl telnet \
-    docker.io \
-    iputils-ping net-tools \
-    libncurses5
+ARG DEBIAN_FRONTEND=noninteractive
 
-RUN groupadd -g $USER_GID $USERNAME
-RUN useradd -s /bin/bash -u $USER_UID -g $USER_GID -G docker -m $USERNAME
-RUN echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME
-RUN chmod 0440 /etc/sudoers.d/$USERNAME
+# Install necessary software
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    bison \
+    build-essential \
+    ca-certificates \
+    ccache \
+    clang-format \
+    cmake \
+    curl \
+    dfu-util \
+    flex \
+    gcc-multilib \
+    git \
+    gnupg \
+    gperf \
+    libavahi-client-dev \
+    libcairo2-dev \
+    libdbus-1-dev \
+    libffi-dev \
+    libgirepository1.0-dev \
+    libglib2.0-dev \
+    libncurses5 \
+    libreadline-dev \
+    libssl-dev \
+    libusb-1.0-0 \
+    locales \
+    nano \
+    ninja-build \
+    pkg-config \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-setuptools \
+    python3-venv \
+    sudo \
+    unzip \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /var/downloads
-RUN cd /var/downloads
-RUN curl -JL https://github.com/microsoft/vscode-cpptools/releases/download/0.27.0/cpptools-linux.vsix > extension.zip
-RUN unzip extension.zip
-RUN mkdir -p /home/$USERNAME/.vscode-server/extensions
-RUN mv extension /home/$USERNAME/.vscode-server/extensions/ms-vscode.cpptools-0.27.0
-RUN mkdir -p /home/$USERNAME/bin
-RUN curl https://raw.githubusercontent.com/restyled-io/restyler/master/bin/restyle-path -o /home/$USERNAME/bin/restyle-path
-RUN chmod +x /home/$USERNAME/bin/restyle-path
-RUN chown -R $USERNAME:$USERNAME /home/$USERNAME
-RUN echo "PATH=/home/$USERNAME/bin:${PATH}" >> /home/$USERNAME/.bashrc
+# Setup locales
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen
 
-# $USERNAME needs to own the esp-idf and tools for the examples to build
-RUN chown -R $USERNAME:$USERNAME /opt/espressif/esp-idf
-RUN chown -R $USERNAME:$USERNAME /opt/espressif/tools
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
 
-# $USERNAME needs to own west configuration to build nRF Connect examples
-RUN chown -R $USERNAME:$USERNAME /opt/NordicSemiconductor/nrfconnect/
+# Create a new sudo user with the right permissions
+RUN groupadd -g 986 ttyusb && \
+    useradd -ms /bin/bash -G dialout,plugdev,ttyusb $USERNAME && \
+    echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/$USERNAME
 
-# allow read/write access to header and libraries
-RUN chown -R $USERNAME:$USERNAME /opt/ubuntu-21.04-aarch64-sysroot/usr/
+USER $USERNAME
 
-# allow licenses to be accepted
-RUN chown -R $USERNAME:$USERNAME /opt/android/sdk
+WORKDIR /home/$USERNAME
 
-# AmebaD requires access to change build_info.h
-RUN chown -R $USERNAME:$USERNAME /opt/ameba/ambd_sdk_with_chip_non_NDA/
+# Install esp-idf
+RUN mkdir tools \
+    && cd tools \
+    && git clone -b v4.4 --recurse-submodules -j8 https://github.com/espressif/esp-idf.git \
+    && cd esp-idf \
+    && ./install.sh
 
-# NXP uses a patch_sdk script to change SDK files
-RUN chown -R $USERNAME:$USERNAME /opt/sdk/sdks/
-
-RUN chown -R $USERNAME:$USERNAME /opt/fsl-imx-xwayland/5.10-hardknott/
+# Setup terminal
+RUN echo '. $HOME/tools/esp-idf/export.sh' >> ~/.bashrc && \
+    echo 'source ./scripts/activate.sh' >> ~/.bashrc

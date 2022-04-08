@@ -1,24 +1,25 @@
 {
-    "name": "CHIP Ubuntu Development Environment",
-    "runArgs": [
-        "--cap-add=SYS_PTRACE",
-        "--security-opt",
-        "seccomp=unconfined",
-        "--network=host",
-        "--privileged",
-        "-v",
-        "/dev/bus/usb:/dev/bus/usb:ro",
-        "--device-cgroup-rule=a 189:* rmw",
-        "--add-host=host.docker.internal:host-gateway"
-    ],
+    "name": "CHIP Ubuntu Development Environment (n-vr custom)",
+    // "runArgs": [
+    //     "--cap-add=SYS_PTRACE",
+    //     "--security-opt",
+    //     "seccomp=unconfined",
+    //     "--network=host",
+    //     "-v",
+    //     "/dev/bus/usb:/dev/bus/usb:ro",
+    //     "--device-cgroup-rule=a 189:* rmw",
+    //     "--add-host=host.docker.internal:host-gateway"
+    // ],
+    "runArgs": ["--privileged"],
     "mounts": [
-        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+        "source=/dev,target=/dev,type=bind,consistency=consistent"
     ],
     "build": {
-        "dockerfile": "Dockerfile",
-        "args": {
-            "BUILD_VERSION": "0.5.56"
-        }
+        "dockerfile": "Dockerfile"
+        // "args": {
+        //     "BUILD_VERSION": "0.5.22"
+        // }
     },
     "remoteUser": "vscode",
     // Add the IDs of extensions you want installed when the container is created in the array below.
@@ -38,13 +39,14 @@
         "christian-kohler.path-intellisense",
         "knisterpeter.vscode-github",
         "npclaudiu.vscode-gn",
-        "marus25.cortex-debug"
+        "marus25.cortex-debug",
+        "ms-vscode.cpptools"
     ],
     // Use 'settings' to set *default* container specific settings.json values on container create.
     // You can edit these settings after create using File > Preferences > Settings > Remote.
-    "settings": {
-        "terminal.integrated.shell.linux": "/bin/bash"
-    },
+    // "settings": {
+    //     "terminal.integrated.shell.linux": "/bin/bash"
+    // },
     "remoteEnv": {
         "GIT_PS1_SHOWDIRTYSTATE": "1",
         "GIT_PS1_SHOWSTASHSTATE": "1",
