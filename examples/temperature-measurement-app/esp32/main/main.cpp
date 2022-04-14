@@ -38,6 +38,11 @@
 #include <credentials/examples/DeviceAttestationCredsExample.h>
 #include <platform/ESP32/NetworkCommissioningDriver.h>
 
+#include <app-common/zap-generated/attribute-id.h>
+#include <app-common/zap-generated/attribute-type.h>
+#include <app-common/zap-generated/attributes/Accessors.h>
+#include <app-common/zap-generated/cluster-id.h>
+
 #include <lib/support/ErrorStr.h>
 
 #if CONFIG_ENABLE_PW_RPC
@@ -68,6 +73,32 @@ static void InitServer(intptr_t context)
 }
 
 } // namespace
+
+void setTemperatureMeasurement(int16_t value)
+{
+    chip::DeviceLayer::PlatformMgr().LockChipStack();
+    chip::app::Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(1, value);
+    chip::DeviceLayer::PlatformMgr().UnlockChipStack();
+}
+
+void AppTask(void * pvParameters)
+{
+    int16_t temperature = 0;
+
+    setTemperatureMeasurement(temperature);
+
+    while (true)
+    {
+        // Wait for 10 seconds.
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+
+        temperature++;
+
+        ESP_LOGI(TAG, "Incrementing the MeasuredValue to: %d", temperature);
+
+        setTemperatureMeasurement(temperature);
+    }
+}
 
 extern "C" void app_main()
 {
@@ -110,4 +141,11 @@ extern "C" void app_main()
 
     // Initialize device attestation config
     SetDeviceAttestationCredentialsProvider(Examples::GetExampleDACProvider());
+
+    TaskHandle_t apptask_handle;
+    auto status = xTaskCreatePinnedToCore(AppTask, "AppTask", 4096, nullptr, tskIDLE_PRIORITY, &apptask_handle, APP_CPU_NUM);
+    if (status != pdPASS)
+    {
+        ESP_LOGE(TAG, "Failed when creating AppTask");
+    }
 }
