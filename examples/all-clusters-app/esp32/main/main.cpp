@@ -138,6 +138,32 @@ static void InitOTARequestor(void)
 #endif
 }
 
+void setTemperatureMeasurement(int16_t value)
+{
+    chip::DeviceLayer::PlatformMgr().LockChipStack();
+    chip::app::Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(1, value);
+    chip::DeviceLayer::PlatformMgr().UnlockChipStack();
+}
+
+void IncrementTask(void * pvParameters)
+{
+    int16_t temperature = 0;
+
+    setTemperatureMeasurement(temperature);
+
+    while (true)
+    {
+        // Wait for 10 seconds.
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+
+        temperature++;
+
+        ESP_LOGI(TAG, "Incrementing the MeasuredValue to: %d", temperature);
+
+        setTemperatureMeasurement(temperature);
+    }
+}
+
 extern "C" void app_main()
 {
     // Initialize the ESP NVS layer.
@@ -184,6 +210,14 @@ extern "C" void app_main()
     }
 
     chip::DeviceLayer::PlatformMgr().ScheduleWork(InitServer, reinterpret_cast<intptr_t>(nullptr));
+
+    TaskHandle_t incrementtask_handle;
+    auto status = xTaskCreatePinnedToCore(IncrementTask, "IncrementTask", 4096, nullptr, tskIDLE_PRIORITY, &incrementtask_handle,
+                                          APP_CPU_NUM);
+    if (status != pdPASS)
+    {
+        ESP_LOGE(TAG, "Failed when creating IncrementTask");
+    }
 }
 
 bool lowPowerClusterSleep()
