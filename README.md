@@ -104,10 +104,11 @@ persistent (non-volatile) memory of the device.
     -   [Android driver](http://www.wch.cn/download/CH341SER_ANDROID_ZIP.html).
 -   If you used the device before, you shoud first
     [erase all persistenly stored data](#erasing-all-persistenly-stored-data)
--   Open a comand prompt in the directory you chose for the download, change the
-    directory to the subfolder `binaries` and enter:
+-   Unzip the binaries.
+-   Open a comand prompt in the directory you chose to unzip the binaries in and
+    enter:
     ```shell
-    py -m esptool --chip esp32 --baud 460800 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0x1000 bootloader.bin 0x8000 partition-table.bin 0xe000 ota_data_initial.bin 0x10000 chip-all-clusters-app.bin
+    py -m esptool --chip esp32 --baud 460800 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0x1000 bootloader.bin 0x8000 partition-table.bin 0xf000 ota_data_initial.bin 0x20000 chip-all-clusters-app.bin
     ```
 -   This should automatically detect the USB port that the device is connected
     to.
@@ -118,7 +119,7 @@ persistent (non-volatile) memory of the device.
 -   If the COM port is not automatically detected, then enter (while replacing
     `?` with the digit found in the previous step):
     ```shell
-    py -m esptool --chip esp32 --port "COM?" --baud 460800 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0x1000 bootloader.bin 0x8000 partition-table.bin 0xe000 ota_data_initial.bin 0x10000 chip-all-clusters-app.bin
+    py -m esptool --chip esp32 --port "COM?" --baud 460800 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0x1000 bootloader.bin 0x8000 partition-table.bin 0xf000 ota_data_initial.bin 0x20000 chip-all-clusters-app.bin
     ```
     Should you encounter issues you may try to replace `py -m esptool` in the
     above commands with
