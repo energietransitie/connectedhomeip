@@ -1,182 +1,321 @@
-# Matter
+# Does it Matter?
 
-[![Builds](https://github.com/project-chip/connectedhomeip/workflows/Builds/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/build.yaml)
+Graduation assignment on the application of the new industry standard 'Matter'
+for the energy data measurement system of the research group Energy Transition
+at Windesheim University of Applied Sciences
 
-[![Examples - EFR32](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20EFR32/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-efr32.yaml)
-[![Examples - ESP32](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20ESP32/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-esp32.yaml)
-[![Examples - i.MX Linux](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20i.MX%20Linux/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-linux-imx.yaml)
-[![Examples - K32W with SE051](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20K32W%20with%20SE051/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-k32w.yaml)
-[![Examples - Linux Standalone](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20Linux%20Standalone/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-linux-standalone.yaml)
-[![Examples - nRF Connect SDK](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20nRF%20Connect%20SDK/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-nrfconnect.yaml)
-[![Examples - QPG](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20QPG/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-qpg.yaml)
-[![Examples - TI CC26X2X7](https://github.com/project-chip/connectedhomeip/workflows/Build%20example%20-%20TI%20CC26X2X7/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/examples-cc13x2x7_26x2x7.yaml)
+This branch holds changes that are made to the original repository in order to
+conduct some [tests](#tests) for the research group Energy Transition at
+Windesheim University of Applied Sciences.
 
-[![Android](https://github.com/project-chip/connectedhomeip/workflows/Android/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/android.yaml)
+## Table of contents
 
-[![Unit / Interation Tests](https://github.com/project-chip/connectedhomeip/workflows/Unit%20/%20Interation%20Tests/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/unit_integration_test.yaml)
-[![Cirque](https://github.com/project-chip/connectedhomeip/workflows/Cirque/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/cirque.yaml)
-[![QEMU](https://github.com/project-chip/connectedhomeip/workflows/QEMU/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/qemu.yaml)
+- [Does it Matter?](#does-it-matter)
+  - [Table of contents](#table-of-contents)
+  - [Tests](#tests)
+  - [Running the all-clusters-app example on the ESP32](#running-the-all-clusters-app-example-on-the-esp32)
+    - [Prerequisites](#prerequisites)
+    - [Erasing all persistenly stored data](#erasing-all-persistenly-stored-data)
+    - [Uploading firmware to the ESP32](#uploading-firmware-to-the-esp32)
+  - [Running the all-clusters-app example on Linux](#running-the-all-clusters-app-example-on-linux)
+    - [Prerequisites](#prerequisites-1)
+    - [Running the Docker container](#running-the-docker-container)
+  - [Issuing commands with the Linux chip-tool](#issuing-commands-with-the-linux-chip-tool)
+    - [Prerequisites](#prerequisites-2)
+    - [Issuing commands](#issuing-commands)
+  - [Compiling the chip-tool for Linux](#compiling-the-chip-tool-for-linux)
+    - [prerequisites](#prerequisites-3)
+    - [Building the chip-tool](#building-the-chip-tool)
+  - [Compiling the all-clusters-app example for the ESP32](#compiling-the-all-clusters-app-example-for-the-esp32)
+    - [prerequisites](#prerequisites-4)
+    - [Building the all-clusters-app](#building-the-all-clusters-app)
+  - [Compiling the all-clusters-app example for Linux](#compiling-the-all-clusters-app-example-for-linux)
+    - [prerequisites](#prerequisites-5)
+    - [Building the all-clusters-app](#building-the-all-clusters-app-1)
+  - [Credits](#credits)
+  - [License](#license)
 
-[![ZAP Templates](https://github.com/project-chip/connectedhomeip/workflows/ZAP/badge.svg)](https://github.com/project-chip/connectedhomeip/actions/workflows/zap_templates.yaml)
+## Tests
 
-# What is Matter?
+The following functionalities were tested:
 
-Matter (formerly Project Connected Home over IP, or Project CHIP) is a new
-Working Group within the Connectivity Standards Alliance (CSA, formerly Zigbee
-Alliance). This Working Group plans to develop and promote the adoption of a
-new, royalty-free connectivity standard to increase compatibility among smart
-home products, with security as a fundamental design tenet.
+| Test                                           | Result             |
+| ---------------------------------------------- | ------------------ |
+| Building Matter for the ESP32                  | :heavy_check_mark: |
+| Building Matter for Linux                      | :heavy_check_mark: |
+| Commissioning commands                         | :heavy_check_mark: |
+| Binding commands                               | :x:                |
+| Binding to a node outside of the local network | :x:[^1]            |
 
-The goal of the Matter project is to simplify development for manufacturers and
-increase compatibility for consumers. The project is built around a shared
-belief that smart home devices should be secure, reliable, and seamless to use.
-By building upon Internet Protocol (IP), the project aims to enable
-communication across smart home devices, mobile apps, and cloud services and to
-define a specific set of IP-based networking technologies for device
-certification.
+[^1]: This test could not be conducted because the previous test failed.
 
-The CSA officially opened the Matter Working Group on January 17, 2020 and is in
-the process of drafting the specification.
+## Running the all-clusters-app example on the ESP32
 
-Visit [buildwithmatter.com](https://buildwithmatter.com) to learn more and read
-the latest news and updates about the project.
+This section describes how you can deploy binary releases of the firmware, i.e.
+without changing the source code, without a development environment and without
+needing to compile the source code.
 
-# Project Overview
+### Prerequisites
 
-## Development Goals
+-   a device based on an ESP32 SoC, such as the
+    [LilyGO TTGO T7 Mini32 V1.3 ESP32](https://github.com/LilyGO/ESP32-MINI-32-V1.3)
+-   a USB to micro-USB cable
+-   a PC with a USB port
+-   [Python v3.8 or above](https://www.python.org/downloads/) installed, and
+    make sure to select `Add Python <version number> to PATH` so you can use the
+    Python commands we document below from a command prompt
+-   [Esptool](https://github.com/espressif/esptool) installed, the Espressif SoC
+    serial bootloader utility
+-   [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/), a serial
+    monitor utility (if your you are also developing, you may use the serial
+    monitor utility in your IDE, instead).
 
-Matter is developed with the following goals and principles in mind:
+### Erasing all persistenly stored data
 
-**Unifying:** Matter will produce a new specification, building with and on top
-of market-tested, existing technologies.
+Unless you are 100% sure that it is safe to only upload firmware and keep other
+persistent memory intact, you should always first completely erase the
+persistent (non-volatile) memory of the device.
 
-**Interoperable:** The specification permits communication between any
-Matter-certified device, subject to users’ permission.
+-   Open a command prompt and enter:
+    ```shell
+    py -m esptool erase_flash
+    ```
+-   If the port is not detected automatically, enter (while replacing `?` with
+    the digit found earlier): `shell py -m esptool erase_flash --port "COM?" `
+    Should you encounter issues you may try to replace `py -m esptool` in the
+    above commands with `python -m esptool` or `esptool.py`
 
-**Secure:** The specification leverages modern security practices and protocols.
+### Uploading firmware to the ESP32
 
-**User Control:** The end user is in control of authorization for interaction
-with devices.
+-   Connect the device with a USB cable to the PC.
+-   Download the
+    [binary release](https://github.com/energietransitie/connectedhomeip/releases)
+    and extract it to a directory of your choice.
+-   Some devices, such as the
+    [LilyGO TTGO T7 Mini32 V1.3 ESP32](https://github.com/LilyGO/ESP32-MINI-32-V1.3),
+    are based on the CH340 USB to serial converter, which may not be recognized
+    by your OS. You may need to install a specific usb driver on your computer
+    before you can upload firmware:
+    -   [Windows driver](http://www.wch.cn/download/CH341SER_EXE.html);
+    -   [Mac OSX driver](http://www.wch.cn/download/CH341SER_MAC_ZIP.html) (see
+        also
+        [this additional info](https://kig.re/2014/12/31/how-to-use-arduino-nano-mini-pro-with-CH340G-on-mac-osx-yosemite.html));
+    -   [Linux driver](http://www.wch.cn/download/CH341SER_LINUX_ZIP.html);
+    -   [Android driver](http://www.wch.cn/download/CH341SER_ANDROID_ZIP.html).
+-   If you used the device before, you shoud first
+    [erase all persistenly stored data](#erasing-all-persistenly-stored-data)
+-   Open a comand prompt in the directory you chose for the download, change the
+    directory to the subfolder `binaries` and enter:
+    ```shell
+    py -m esptool --chip esp32 --baud 460800 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0x1000 bootloader.bin 0x8000 partition-table.bin 0xe000 ota_data_initial.bin 0x10000 chip-all-clusters-app.bin
+    ```
+-   This should automatically detect the USB port that the device is connected
+    to.
+-   If not, then open the Device Manager (in Windows press the `Windows + X` key
+    combination, then select Device Manager), go to View and click Show Hidden
+    Devices. Then unfold `Ports (COM & LPT)`. You should find the device there,
+    named `USB-Serial CH340 *(COM?)` with `?` being a single digit.
+-   If the COM port is not automatically detected, then enter (while replacing
+    `?` with the digit found in the previous step):
+    ```shell
+    py -m esptool --chip esp32 --port "COM?" --baud 460800 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0x1000 bootloader.bin 0x8000 partition-table.bin 0xe000 ota_data_initial.bin 0x10000 chip-all-clusters-app.bin
+    ```
+    Should you encounter issues you may try to replace `py -m esptool` in the
+    above commands with
+    ```shell
+    python -m esptool
+    ```
+    or
+    ```shell
+    python3 -m esptool
+    ```
+    or
+    ```shell
+    esptool.py
+    ```
 
-**Federated:** No single entity serves as a throttle or a
-single-point-of-failure for root of trust.
+## Running the all-clusters-app example on Linux
 
-**Robust:** The set of protocols specify a complete lifecycle of a device —
-starting with the seamless out-of-box experience, through operational protocols,
-to device and system management specifications required for proper function in
-the presence of change.
+This section describes how you can deploy the all-clusters-app on Linux without
+changing the source code, without a development environment and without needing
+to compile the source code.
 
-**Low Overhead:** The protocols are practically implementable on low
-compute-resource devices, such as MCUs.
+### Prerequisites
 
-**Pervasive:** The protocols are broadly deployable and accessible, thanks to
-leveraging IP and being implementable on low-capability devices.
+-   A Linux host
+-   [Docker](https://docs.docker.com/engine/install/#server)
+-   A user with docker
+    [permissions](https://docs.docker.com/engine/install/linux-postinstall/)
 
-**Ecosystem-Flexible:** The protocol must be flexible enough to accommodate
-deployment in ecosystems with differing policies.
+### Running the Docker container
 
-**Easy to Use:** The protocol should aim to provide smooth, cohesive, integrated
-provisioning and out-of-box experience.
+-   Create a new Docker volume:
+    ```shell
+    docker volume create matter_data
+    ```
+-   Create and run the Docker container:
+    ```shell
+    docker run -it \
+    --name matter \
+    --net=host \
+    -v matter_data:/tmp \
+    ghcr.io/energietransitie/matter-all-clusters-app:latest \
+    --discriminator <discriminator> --passcode <passcode>
+    ```
+    Replace `<discriminator>` and `<passcode>` with the discriminator and
+    passcode of your choice.
 
-**Open:** The Project’s design and technical processes should be open and
-transparent to the general public, including to non-members wherever possible.
+## Issuing commands with the Linux chip-tool
 
-## Architecture Overview
+### Prerequisites
 
-![Matter Architecture Overview](docs/images/CHIP_IP_pyramid.png)
+-   Linux host with the following dynamic libraries installed:
+    -   libblkid1
+    -   libc6
+    -   libffi7
+    -   libgcc-s1
+    -   libglib2.0-0
+    -   libglib2.0-dev
+    -   libmount1
+    -   libpcre2-8-0
+    -   libpcre3
+    -   libreadline8
+    -   libselinux1
+    -   libssl1.1
+    -   libstdc++6
+    -   libtinfo6
+    -   zlib1g
 
-The Project, as illustrated above, defines the application layer that will be
-deployed on devices and controllers as well as the supported IPv6-based networks
-to help achieve our interoperability architectural goal. Matter will initially
-support Wi-Fi and Thread for core, operational communications and Bluetooth Low
-Energy (BLE) to simplify device commissioning and setup.
+### Issuing commands
 
-The Application Layer can be further broken down into seven main components:
+-   Download the chip-tool binary from the
+    [releases](https://github.com/energietransitie/connectedhomeip/releases) or
+    [compile it yourself](#compiling-the-chip-tool-for-linux).
+-   Change directory to where the binary executable is located.
+-   Run command like this:
+    ```shell
+    ./chip-tool <commands>
+    ```
+    See the full list of commands [here](docs/guides/chip_tool_guide.md).
 
-![Matter Stack Architecture](docs/images/CHIP_Arch_Pyramid.png)
+## Compiling the chip-tool for Linux
 
-1. **Application:** High order business logic of a device. For example, an
-   application that is focused on lighting might contain logic to handle turning
-   on/off the bulb as well as its color characteristics.
+This section describes how you can change the source code using a development
+environment and compile the source code into a binary release of the firmware
+that can be deployed, using the development environment.
 
-2. **Data Model:** Data primitives that help describe the various
-   functionalities of the devices. The Application operates on these data
-   structures when there is intent to interact with the device.
+### prerequisites
 
-3. **Interaction Model:** Represents a set of actions that can be performed on
-   the devices to interact with it. For example, reading or writing attributes
-   on a device would correspond to interactions with the devices. These actions
-   operate on the structures defined by the data model.
+-   Git
+-   [Docker desktop](https://docs.docker.com/desktop/) for MacOS or Windows or
+    [Docker](https://docs.docker.com/engine/) for Linux
+-   [VS Code](https://code.visualstudio.com/)
+-   [VS Code remote - containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-4. **Action Framing:** Once an action is constructed using the Interaction
-   Model, it is framed into a prescriptive packed binary format to enable being
-   well represented on the “wire”.
+### Building the chip-tool
 
-5. **Security:** An encoded action frame is then sent down to the Security Layer
-   to encrypt and sign the payload to ensure that data is secured and
-   authenticated by both sender and receiver of a packet.
+-   Clone the repository with git:
+    ```shell
+    git clone --branch does-it-matter https://github.com/energietransitie/connectedhomeip.git --recurse-submodules
+    ```
+    > This may take some time, because of the large amount of submodules.
+-   Open the cloned repository in VS Code and click on `reopen in container` in
+    the popup that will be displayed in the bottom right.
+-   Open a terminal (CTRL+~) in VS code.
+-   Run the following command:
+    ```shell
+    ./scripts/examples/gn_build_example.sh examples/chip-tool out/chip-tool
+    ```
+-   The binary executable can be found here: `out/chip-tool/chip-tool`.
 
-6. **Message Framing & Routing:** With an interaction encrypted and signed, the
-   Message Layer constructs the payload format with required and optional header
-   fields; which specify properties of the message as well as some routing
-   information.
+## Compiling the all-clusters-app example for the ESP32
 
-7. **IP Framing & Transport Management:** After the final payload has been
-   constructed, it is sent to the underlying transport protocol for IP
-   management of the data.
+This section describes how you can change the source code using a development
+environment and compile the source code into a binary release of the firmware
+that can be deployed, using the development environment.
 
-# Current Status of Matter
+### prerequisites
 
-Matter’s design and technical processes are intended to be open and transparent
-to the general public, including to Work Group non-members wherever possible.
-The availability of this GitHub repository and its source code under an Apache
-v2 license is an important and demonstrable step to achieving this commitment.
+-   Git
+-   [Docker desktop](https://docs.docker.com/desktop/) for MacOS or Windows or
+    [Docker](https://docs.docker.com/engine/) for Linux
+-   [VS Code](https://code.visualstudio.com/)
+-   [VS Code remote - containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-Matter endeavors to bring together the best aspects of market-tested
-technologies and to redeploy them as a unified and cohesive whole-system
-solution. The overall goal of this approach is to bring the benefits of Matter
-to consumers and manufacturers as quickly as possible. As a result, what you
-observe in this repository is an implementation-first approach to the technical
-specification, vetting integrations in practice.
+### Building the all-clusters-app
 
-The Matter repository is growing and evolving to implement the overall
-architecture. The repository currently contains the security foundations,
-message framing and dispatch, an implementation of the interaction model and
-data model. The code examples show simple interactions, and are supported on
-multiple transports -- Wi-Fi and Thread -- starting with resource-constrained
-(i.e., memory, processing) silicon platforms to help ensure Matter’s
-scalability.
+-   Clone the repository with git:
+    ```shell
+    git clone --branch does-it-matter https://github.com/energietransitie/connectedhomeip.git --recurse-submodules
+    ```
+    > This may take some time, because of the large amount of submodules.
+-   Open the cloned repository in VS Code and click on `reopen in container` in
+    the popup that will be displayed in the bottom right.
+-   Open a terminal (CTRL+~) in VS code.
+-   Change directory to the all-clusters-app folder:
+    ```shell
+    cd examples/all-clusters-app/esp32
+    ```
+-   Build the binaries:
+    ```shell
+    idf.py build
+    ```
+-   (Optionally) flash the binaries to the ESP32:
+    ```shell
+    idf.py build
+    ```
+-   (Optionally) open the monitor on the ESP32:
+    ```shell
+    idf.py monitor
+    ```
+-   (Tip) You can combine all the commands to build an flash the firmware and
+    immediately :
+    ```shell
+    idf.py build flash monitor
+    ```
 
-# How to Contribute
+## Compiling the all-clusters-app example for Linux
 
-We welcome your contributions to Matter. Read our contribution guidelines
-[here](./CONTRIBUTING.md).
+This section describes how you can change the source code using a development
+environment and compile the source code into a binary release of the firmware
+that can be deployed, using the development environment.
 
-# Building and Developing in Matter
+### prerequisites
 
-Instructions about how to build Matter can be found [here](./docs/README.md).
+-   Git
+-   [Docker desktop](https://docs.docker.com/desktop/) for MacOS or Windows or
+    [Docker](https://docs.docker.com/engine/) for Linux
+-   [VS Code](https://code.visualstudio.com/)
+-   [VS Code remote - containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-# Directory Structure
+### Building the all-clusters-app
 
-The Matter repository is structured as follows:
+-   Clone the repository with git:
+    ```shell
+    git clone --branch does-it-matter https://github.com/energietransitie/connectedhomeip.git --recurse-submodules
+    ```
+    > This may take some time, because of the large amount of submodules.
+-   Open the cloned repository in VS Code and click on `reopen in container` in
+    the popup that will be displayed in the bottom right.
+-   Open a terminal (CTRL+~) in VS code.
+-   Run the following command:
+    ```shell
+    ./scripts/build/build_examples.py --target linux-x64-all-clusters-no-ble-no-wifi build
+    ```
+-   The binary executable can be found here:
+    `out/linux-x64-all-clusters-no-ble-no-wifi/chip-all-clusters-app`.
 
-| File / Folder                          | Contents                                                                           |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| `build/`                               | Build system support content and build output directories                          |
-| [BUILDING.md](docs/guides/BUILDING.md) | More detailed information on configuring and building Matter for different targets |
-| `CODE_OF_CONDUCT.md`                   | Code of Conduct for Matter, and contributions to it                                |
-| [CONTRIBUTING.md](./CONTRIBUTING.md)   | Guidelines for contributing to Matter                                              |
-| `docs/`                                | Documentation, including [guides](./docs/guides)                                   |
-| `examples/`                            | Example firmware applications that demonstrate use of the Matter technology        |
-| `integrations/`                        | Third party integrations related to this project                                   |
-| `integrations/docker/`                 | Docker scripts and Dockerfiles                                                     |
-| `LICENSE`                              | Matter [License file](./LICENSE) (Apache 2.0)                                      |
-| `BUILD.gn`                             | Top level GN build file                                                            |
-| `README.md`                            | This file                                                                          |
-| `src/`                                 | Implementation of Matter                                                           |
-| `third_party/`                         | Third-party code used by Matter                                                    |
-| `scripts/`                             | Scripts needed to work with the Matter repository                                  |
+## Credits
 
-# License
+This fork and the tests were created, conducted and described by:
+
+-   Nick van Ravenzwaaij · [@n-vr](https://github.com/n-vr)
+
+Product owner:
+
+-   Henri ter Hofte · [@henriterhofte](https://github.com/henriterhofte) ·
+    Twitter [@HeNRGi](https://twitter.com/HeNRGi)
+
+## License
 
 Matter is released under the [Apache 2.0 license](./LICENSE).
