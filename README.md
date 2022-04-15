@@ -89,7 +89,7 @@ persistent (non-volatile) memory of the device.
 
 -   Connect the device with a USB cable to the PC.
 -   Download the
-    [binary release](https://github.com/energietransitie/connectedhomeip/releases)
+    [binary release](https://github.com/energietransitie/connectedhomeip/releases/tag/test-binaries)
     and extract it to a directory of your choice.
 -   Some devices, such as the
     [LilyGO TTGO T7 Mini32 V1.3 ESP32](https://github.com/LilyGO/ESP32-MINI-32-V1.3),
@@ -189,8 +189,8 @@ to compile the source code.
 ### Issuing commands
 
 -   Download the chip-tool binary from the
-    [releases](https://github.com/energietransitie/connectedhomeip/releases) or
-    [compile it yourself](#compiling-the-chip-tool-for-linux).
+    [releases](https://github.com/energietransitie/connectedhomeip/releases/tag/test-binaries)
+    or [compile it yourself](#compiling-the-chip-tool-for-linux).
 -   Change directory to where the binary executable is located.
 -   Run command like this:
     ```shell
